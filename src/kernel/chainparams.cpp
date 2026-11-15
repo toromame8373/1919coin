@@ -498,8 +498,10 @@ public:
 };
 
 /**
- * Regression test: intended for private networks only. Has minimal difficulty to ensure that
- * blocks can be found instantly.
+ * 1919coin regression test: intended for private networks only. Has minimal
+ * difficulty to ensure that blocks can be found instantly. Own genesis,
+ * magic, ports and address formats, so it can never cross-connect with the
+ * 1919coin mainnet/testnet (or Bitcoin's regtest).
  */
 class CRegTestParams : public CChainParams
 {
@@ -522,6 +524,10 @@ public:
         consensus.nPowTargetSpacing = 10 * 60;
         consensus.fPowAllowMinDifficultyBlocks = true;
         consensus.enforce_BIP94 = opts.enforce_bip94;
+        // With fPowNoRetargeting set, GetNextWorkRequired returns the previous
+        // block's nBits unchanged, so this fork's per-block LWMA never engages
+        // on regtest: difficulty stays at the (trivial) genesis level and
+        // generatetoaddress can mine indefinitely, like Bitcoin regtest.
         consensus.fPowNoRetargeting = true;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
@@ -541,11 +547,11 @@ public:
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
 
-        pchMessageStart[0] = 0xfa;
-        pchMessageStart[1] = 0xbf;
-        pchMessageStart[2] = 0xb5;
-        pchMessageStart[3] = 0xda;
-        nDefaultPort = 18444;
+        pchMessageStart[0] = 0x19; // 1919
+        pchMessageStart[1] = 0x19;
+        pchMessageStart[2] = 0x81;
+        pchMessageStart[3] = 0x0c; // mainnet is 0x0a, testnet is 0x0b
+        nDefaultPort = 31451;
         nPruneAfterHeight = opts.fastprune ? 100 : 1000;
         m_assumed_blockchain_size = 0;
         m_assumed_chain_state_size = 0;
@@ -576,40 +582,29 @@ public:
             consensus.vDeployments[deployment_pos].min_activation_height = version_bits_params.min_activation_height;
         }
 
-        genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 50 * COIN);
+        {
+            const char* pszTimestamp = "1919coin regtest 2026-11-15 - RandomX genesis";
+            // Same pay-to-pubkey output as the mainnet/testnet genesis.
+            const CScript genesisOutputScript = CScript() << "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"_hex << OP_CHECKSIG;
+            // nTime 1794700800 = 2026-11-15 00:00:00 UTC (same as the testnet
+            // genesis; deliberately in the past so blocks can be mined right
+            // away). nNonce 0 is a real RandomX solution for nBits 0x207fffff
+            // (hash 38c9ea8c... <= target).
+            genesis = CreateGenesisBlock(pszTimestamp, genesisOutputScript, 1794700800, 0, 0x207fffff, 1, 10 * COIN);
+        }
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"});
-        assert(genesis.hashMerkleRoot == uint256{"4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"});
+        assert(consensus.hashGenesisBlock == uint256{"62f6f6be0e61aaab62d3f66e752cbdec60043a6626da0c15b15bc5d956c10d1c"});
+        assert(genesis.hashMerkleRoot == uint256{"d27f40b015fe6d2df4002b60a0e15e645353e082a7321317009b45bb58c4a7e8"});
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
-        vSeeds.clear();
-        vSeeds.emplace_back("dummySeed.invalid.");
+        vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
 
         fDefaultConsistencyChecks = true;
         m_is_mockable_chain = true;
 
-        m_assumeutxo_data = {
-            {   // For use by unit tests
-                .height = 110,
-                .hash_serialized = AssumeutxoHash{uint256{"b952555c8ab81fec46f3d4253b7af256d766ceb39fb7752b9d18cdf4a0141327"}},
-                .m_chain_tx_count = 111,
-                .blockhash = consteval_ctor(uint256{"6affe030b7965ab538f820a56ef56c8149b7dc1d1c144af57113be080db7c397"}),
-            },
-            {
-                // For use by fuzz target src/test/fuzz/utxo_snapshot.cpp
-                .height = 200,
-                .hash_serialized = AssumeutxoHash{uint256{"17dcc016d188d16068907cdeb38b75691a118d43053b8cd6a25969419381d13a"}},
-                .m_chain_tx_count = 201,
-                .blockhash = consteval_ctor(uint256{"385901ccbd69dff6bbd00065d01fb8a9e464dede7cfe0372443884f9b1dcf6b9"}),
-            },
-            {
-                // For use by test/functional/feature_assumeutxo.py
-                .height = 299,
-                .hash_serialized = AssumeutxoHash{uint256{"d2b051ff5e8eef46520350776f4100dd710a63447a8e01d917e92e79751a63e2"}},
-                .m_chain_tx_count = 334,
-                .blockhash = consteval_ctor(uint256{"7cc695046fec709f8c9394b6f928f81e81fd3ac20977bb68760fa1faa7916ea2"}),
-            },
-        };
+        // No assumeutxo snapshots: the stock entries reference Bitcoin regtest
+        // blocks that can never exist on this chain.
+        m_assumeutxo_data = {};
 
         chainTxData = ChainTxData{
             .nTime = 0,
@@ -617,13 +612,15 @@ public:
             .dTxRate = 0.001, // Set a non-zero rate to make it testable
         };
 
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,111);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,196);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,239);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
-        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
+        // Same base58 prefixes as this fork's testnet (the chain is told apart
+        // by the bech32 HRP, magic and ports, like Bitcoin's regtest/testnet).
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,90);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,32);
+        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,218);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
-        bech32_hrp = "bcrt";
+        bech32_hrp = "riku";
     }
 };
 

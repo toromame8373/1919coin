@@ -29,7 +29,7 @@ Bitcoin Core v30.4 を改造し、PoW を **RandomX** に差し替えた新規�
 
 ## BIP39 シードフレーズ
 
-ウォレットは BIP39 のシードフレーズ（12 / 15 / 18 / 21 / 24 語）から作成・復元できます。導出は BIP84（メインネット `m/84'/0'/0'`、テストネット `m/84'/1'/0'`）で、ネイティブ SegWit（`iku1...` / `tiku1...`）のデスクリプタとしてウォレットに取り込まれます。操作は RPC / CLI から行います（GUI は未対応）。
+ウォレットは BIP39 のシードフレーズ（12 / 15 / 18 / 21 / 24 語）から作成・復元できます。導出は BIP84（メインネット `m/84'/0'/0'`、テストネット・regtest `m/84'/1'/0'`）で、ネイティブ SegWit（`iku1...` / `tiku1...` / `riku1...`）のデスクリプタとしてウォレットに取り込まれます。操作は RPC / CLI から行います（GUI は未対応）。
 
 ### 新しいフレーズでウォレットを作る
 
@@ -95,6 +95,20 @@ Bitcoin のアドレスにはそのまま送れず（逆も同様）、取り違
 - アドレス形式: bech32 は HRP `tiku`（`tiku1q...`）、Legacy P2PKH は prefix 90（`d...`）、P2SH は prefix 32（`D...`）、WIF は prefix 218。メインネット・Bitcoin テストネットのどちらとも混同しません。
 - テストネットのコインに実価値はありません。
 
+## regtest
+
+開発・検証用のローカル専用チェーンです。独自ジェネシスを持ち、難易度は最低値に固定される（LWMA は効かない）ので、`generatetoaddress` でその場でブロックを生成できます。DNS シードはなく、外部ネットワークとは一切つながりません。
+
+    1919coind -regtest                                   # regtest でノード起動 (P2P 31451 / RPC 31450)
+    1919coin-cli -regtest generatetoaddress 10 "riku1..."  # その場で10ブロック生成
+
+- データ置き場: `%LOCALAPPDATA%\1919coin\regtest`（他チェーンと分離）
+- マジック: `19 19 81 0c`（メインネットは `...0a`、テストネットは `...0b`）
+- ジェネシス: 2026-11-15 00:00:00 UTC, nBits 0x207fffff, nonce 0, block id `62f6f6be0e61aaab62d3f66e752cbdec60043a6626da0c15b15bc5d956c10d1c`
+- アドレス形式: bech32 は HRP `riku`（`riku1q...`）。Legacy P2PKH / P2SH / WIF の prefix はテストネットと同じ（90 / 32 / 218）。
+- BIP39 の導出はテストネットと同じ coin type 1' を使うため、同じフレーズからはテストネットと同じ鍵で `riku1...` のアドレスが得られます。
+- 半減間隔は 150 ブロックです（Bitcoin の regtest と同じ。半減動作のテスト用）。
+
 ## GUI
 
 `build.bat gui` で Bitcoin Core 標準の Qt GUI（残高・送受信・デバッグコンソール）が付きます。単位表示は `YJU` / `mYJU` / `µYJU` です（CLI/RPC の手数料表記の単位も `YJU`）。アイコンは 1919coin の画像に差し替え済みです（`src/qt/res/icons/`）。
@@ -111,7 +125,7 @@ Bitcoin のアドレスにはそのまま送れず（逆も同様）、取り違
 
 ## 注意
 
-- signet/regtest の PoW は未対応です（テストネットは実装済み。regtest を使う場合は別途調整が必要）。
+- signet の PoW は未対応です（テストネット/regtest は実装済み）。
 - ジェネシスのタイムスタンプ文字列は、メインネットが `1919coin - 114514 1919 810 - RandomX genesis 2026-11-09`、テストネットが `1919coin testnet 2026-11-15 - RandomX genesis` です。
 - 実行ファイル名は 1919coin 系に変更済みです: `bitcoind` → `1919coind`、`bitcoin-cli` → `1919coin-cli`、`bitcoin-qt` → `1919coin-qt`、`bitcoin-tx` → `1919coin-tx`、`bitcoin-util` → `1919coin-util`、`bitcoin-wallet` → `1919coin-wallet`（IPC 用の `bitcoin-node` / `bitcoin-gui` とラッパー `bitcoin` も同様に `1919coin-node` / `1919coin-gui` / `1919coin`）。
 - 51%攻撃に弱い小規模チェーンです。取引所上場や他人への販売をする場合は、法規制・説明責任に注意してください。
