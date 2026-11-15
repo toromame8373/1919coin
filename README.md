@@ -19,9 +19,10 @@ Bitcoin Core v30.4 のフォークです。PoW を **RandomX** に差し替え�
 
     start-node.bat                      # ノード起動 (P2P 11451 / RPC 11450)
     start-gui.bat                       # GUI版を起動（起動中も mine.bat が使えます）
-    start-node.bat -addnode=IP:11451    # 相手ノードを指定（DNSシードなし）
+    start-node.bat -addnode=IP:11451    # 相手ノードを直接指定（予備手段。通常は不要）
     mine.bat [アドレス]                 # ソロマイニング（省略時は wallet "miner" の新規アドレス）
 
+- 接続: DNS シード `seed.1919coin.f5.si` がクライアントに組み込まれているので、通常は起動するだけでネットワークに自動接続します。`-addnode` はシードに繋がらない場合の予備手段です。
 - データ置き場: `%LOCALAPPDATA%\1919coin`（Bitcoin のデータとは完全に別）
 - 初回のマイニング開始時に RandomX の 2GiB データセットを作ります（1分前後）。メモリ 3GiB 以上推奨。
 - スレッド数: `set INMU_MINE_THREADS=4` など。
@@ -63,7 +64,7 @@ Bitcoin のアドレスにはそのまま送れず（逆も同様）、取り違
 メインネットとは独立したテスト用チェーンです。独自ジェネシスを持ち、難易度が極端に低く設定されているので、どの CPU でもすぐブロックが見つかります。発行ルール（10 YJU / 半減 1,050,000 / LWMA 600 秒間隔）はメインネットと同じです。
 
     start-node.bat -testnet                    # テストネットでノード起動 (P2P 21451 / RPC 21450)
-    start-node.bat -testnet -addnode=IP:21451  # 相手ノードを指定（DNSシードなし）
+    start-node.bat -testnet -addnode=IP:21451  # 相手ノードを直接指定（予備手段。通常はDNSシードで自動接続）
     start-gui.bat -testnet                     # GUI でも可
 
 - データ置き場: `%LOCALAPPDATA%\1919coin\testnet3`（メインネットと分離）

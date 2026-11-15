@@ -152,7 +152,10 @@ public:
         // This is fine at runtime as we'll fall back to using them as an addrfetch if they don't support the
         // service bits we want, but we should get them updated to support all service bits wanted by any
         // release ASAP to avoid it where possible.
-        // No DNS seeds: connect with -addnode / -connect.
+        // 1919coin DNS seed: resolves to the seed node on OCI, which introduces
+        // peers (it listens on the mainnet port 11451 and testnet port 21451).
+        // -addnode / -connect remain available as a fallback.
+        vSeeds.emplace_back("seed.1919coin.f5.si");
         // vSeeds.emplace_back("dnsseed.bluematt.me."); // Matt Corallo, only supports x9
         // vSeeds.emplace_back("seed.bitcoin.jonasschnelli.ch."); // Jonas Schnelli, only supports x1, x5, x9, and xd
         // vSeeds.emplace_back("seed.btc.petertodd.net."); // Peter Todd, only supports x1, x5, x9, and xd
@@ -252,9 +255,11 @@ public:
         assert(consensus.hashGenesisBlock == uint256{"a60535e438a4c346c1a539fff59eb9c68af87aa89fab696ccf2fd977101b21be"});
         assert(genesis.hashMerkleRoot == uint256{"d7def3170d398e6c41c9ec58921060ee802cee495fb1389202138b2e0df4896d"});
 
-        // No DNS seeds and no fixed seeds: connect with -addnode / -connect.
+        // No fixed seeds. The DNS seed is the same host as mainnet; the seed
+        // node also listens on the testnet port (21451).
         vFixedSeeds.clear();
         vSeeds.clear();
+        vSeeds.emplace_back("seed.1919coin.f5.si");
 
         // Distinct from mainnet (78/20/206) and from Bitcoin testnet (111/196/239).
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,90);
