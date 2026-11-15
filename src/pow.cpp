@@ -53,7 +53,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     }
 
     // Guard against extreme speed-ups (difficulty at most 10x per step).
-    if (weighted_time < N * k / 10) weighted_time = N * k / 10;
+    if (weighted_time < k / 10) weighted_time = k / 10;
 
     arith_uint256 next_target = sum_target;
     next_target *= arith_uint256(static_cast<uint64_t>(weighted_time));
