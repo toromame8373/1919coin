@@ -1,0 +1,90 @@
+name: Build Windows release
+
+# 手動実行専用: Actions タブ → 「Build Windows release」→ Run workflow
+# ビルド → インストーラー作成 → GitHub リリース公開までを全部ここで行う。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "バージョン (例: 1.0.0)"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ランナー同梱の vcpkg を使う
+        shell: pwsh
+        run: |
+          if ($env:VCPKG_INSTALLATION_ROOT) {
+            "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      - name: ビルド (4並列)
+        id: build4
+        continue-on-error: true
+        shell: cmd
+        run: call build.bat gui 4
+
+      - name: ビルド再試行 (2並列 — C1060 等のメモリ不足対策)
+        if: steps.build4.outcome == 'failure'
+        shell: cmd
+        run: call build.bat gui 2
+
+      - name: NSIS をインストール
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: バイナリを staging へコピー
+        shell: pwsh
+        run: Copy-Item build\bin\*.exe installer\staging\
+
+      - name: インストーラーを作成
+        shell: pwsh
+        working-directory: installer
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DVERSION=${{ inputs.version }} 1919coin.nsi
+          if (!(Test-Path "1919coin-${{ inputs.version }}-win64-setup.exe")) { throw "installer was not produced" }
+
+      - name: 成果物をアーティファクトにも保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1919coin-${{ inputs.version }}-win64-setup
+          path: installer/1919coin-${{ inputs.version }}-win64-setup.exe
+
+      - name: リリースを作成して setup.exe を添付
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: 1919coin v${{ inputs.version }}
+          body: |
+            ## 1919coin v${{ inputs.version }}
+
+            1919coin の公開リリースです。
+
+            ### ダウンロード
+
+            - **1919coin-${{ inputs.version }}-win64-setup.exe** — Windows 用インストーラー（GUI / CLI 一式）
+
+            管理者権限は不要です。実行するとユーザーフォルダにインストールされ、スタートメニューに「1919coin」が追加されます。クライアントにはシードが組み込まれているので、起動すれば自動的にネットワークへ接続します。
+
+            ### 仕様
+
+            - Bitcoin Core v30.4 フォーク、PoW は RandomX（CPU マイニング）
+            - 単位: YJU / ブロック間隔: 約600秒（10分）
+            - ブロック報酬: 10 YJU / 半減期: 1,050,000 ブロック / 最大供給量: 21,000,000 YJU
+            - プレマインなし
+
+            ### 注意
+
+            - 1919coin は個人の実験プロジェクトです。価値の保証はありません。
+            - アンインストールしてもデータフォルダ（`%LOCALAPPDATA%\1919coin`、ウォレット入り）は削除されません。
+            - Android 版ノードアプリは試験的な提供です（このリリースには含まれません）。
+          files: installer/1919coin-${{ inputs.version }}-win64-setup.exe
