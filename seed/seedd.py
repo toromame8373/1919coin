@@ -125,7 +125,7 @@ def build_message(magic, command, payload):
 
 def build_version_payload(listen_port, remote_ip, remote_port, start_height):
     p = struct.pack("<i", PROTOCOL_VERSION)
-    p += struct.pack("<Q", 0)                    # services: none (seed only)
+    p += struct.pack("<Q", 9)                    # services: NODE_NETWORK|NODE_WITNESS (Core v30 requires these on automatic connections)
     p += struct.pack("<q", now())
     p += pack_netaddr(0, remote_ip, remote_port)  # addr_recv: the peer
     p += pack_netaddr(0, "0.0.0.0", listen_port)  # addr_from: us
