@@ -27,6 +27,28 @@ Bitcoin Core v30.4 のフォークです。PoW を **RandomX** に差し替え�
 - 初回のマイニング開始時に RandomX の 2GiB データセットを作ります（1分前後）。メモリ 3GiB 以上推奨。
 - スレッド数: `set INMU_MINE_THREADS=4` など。
 
+## BIP39 シードフレーズ
+
+ウォレットは BIP39 のシードフレーズ（12 / 15 / 18 / 21 / 24 語）から作成・復元できます。導出は BIP84（メインネット `m/84'/0'/0'`、テストネット `m/84'/1'/0'`）で、ネイティブ SegWit（`iku1...` / `tiku1...`）のデスクリプタとしてウォレットに取り込まれます。操作は RPC / CLI から行います（GUI は未対応）。
+
+### 新しいフレーズでウォレットを作る
+
+    1919coin-cli generatemnemonic                       # 24語のフレーズを生成（12語は generatemnemonic 12）
+    1919coin-cli createwallet "mywallet" false true     # 空のデスクリプタウォレットを作成
+    1919coin-cli -rpcwallet=mywallet importmnemonic "word1 word2 ... word24"
+
+- `generatemnemonic` はフレーズを表示するだけで、ウォレット自体は変更しません。表示されたフレーズは紙などに控えて秘密に保管してください。フレーズを知っている人は誰でもコインを動かせます。
+- 任意のパスフレーズ（BIP39 パスフレーズ）を使う場合は、取り込み時に `importmnemonic "フレーズ" "パスフレーズ"` と指定します。パスフレーズが少しでも違うと全く別のウォレットになるので、フレーズと一緒に控えてください。
+
+### フレーズから復元する
+
+    1919coin-cli createwallet "restored" false true
+    1919coin-cli -rpcwallet=restored importmnemonic "word1 word2 ... word24"
+
+- 取り込み先は、デスクリプタが何も入っていない空（blank）のデスクリプタウォレットである必要があります。
+- デスクリプタは timestamp 0 で取り込まれるため、取り込みの後にチェーン全体の再スキャンが走り、過去の受け取りもすべて復元されます。
+- 同じフレーズ＋同じパスフレーズからは、必ず同じアドレスが復元されます。
+
 ## チェーン仕様
 
 | 項目 | 値 |

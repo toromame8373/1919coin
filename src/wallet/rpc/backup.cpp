@@ -3,27 +3,35 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chain.h>
+#include <chainparams.h>
 #include <clientversion.h>
 #include <core_io.h>
 #include <hash.h>
 #include <interfaces/chain.h>
+#include <key.h>
 #include <key_io.h>
 #include <merkleblock.h>
+#include <random.h>
 #include <rpc/util.h>
 #include <script/descriptor.h>
 #include <script/script.h>
 #include <script/solver.h>
+#include <support/cleanse.h>
 #include <sync.h>
 #include <uint256.h>
 #include <util/bip32.h>
+#include <util/chaintype.h>
 #include <util/fs.h>
 #include <util/time.h>
 #include <util/translation.h>
+#include <wallet/mnemonic.h>
 #include <wallet/rpc/util.h>
 #include <wallet/wallet.h>
 
+#include <array>
 #include <cstdint>
 #include <fstream>
+#include <optional>
 #include <tuple>
 #include <string>
 
@@ -450,6 +458,184 @@ RPCHelpMan importdescriptors()
     }
 
     return response;
+},
+    };
+}
+
+RPCHelpMan importmnemonic()
+{
+    return RPCHelpMan{
+        "importmnemonic",
+        "Import a BIP39 mnemonic phrase into a blank descriptor wallet.\n"
+        "The BIP39 seed is derived from the phrase (PBKDF2-HMAC-SHA512, salt \"mnemonic\" + passphrase) and the\n"
+        "BIP84 account m/84'/0'/0' (mainnet) or m/84'/1'/0' (testnet/other chains) is imported as native SegWit\n"
+        "(wpkh) descriptors for the external (/0/*) and internal (/1/*) chains, with timestamp 0 and set active.\n"
+        "The wallet must be a blank descriptor wallet, e.g. created with: createwallet \"wallet_name\" false true\n"
+        "This will trigger a rescan of the entire blockchain (the descriptor timestamp is 0).\n",
+                {
+                    {"mnemonic", RPCArg::Type::STR, RPCArg::Optional::NO, "The BIP39 mnemonic phrase (12, 15, 18, 21 or 24 words from the English word list)"},
+                    {"passphrase", RPCArg::Type::STR, RPCArg::Default{""}, "The optional BIP39 passphrase"},
+                },
+                RPCResult{
+                    RPCResult::Type::ARR, "", "Response is an array with one result object per imported descriptor (external first, then internal), in the same format as importdescriptors",
+                    {
+                        {RPCResult::Type::OBJ, "", "",
+                        {
+                            {RPCResult::Type::BOOL, "success", ""},
+                            {RPCResult::Type::ARR, "warnings", /*optional=*/true, "",
+                            {
+                                {RPCResult::Type::STR, "", ""},
+                            }},
+                            {RPCResult::Type::OBJ, "error", /*optional=*/true, "",
+                            {
+                                {RPCResult::Type::ELISION, "", "JSONRPC error"},
+                            }},
+                        }},
+                    }
+                },
+                RPCExamples{
+                    HelpExampleCli("importmnemonic", "\"abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about\"")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& main_request) -> UniValue
+{
+    std::shared_ptr<CWallet> const pwallet = GetWalletForJSONRPCRequest(main_request);
+    if (!pwallet) return UniValue::VNULL;
+    CWallet& wallet{*pwallet};
+
+    const std::string& mnemonic = main_request.params[0].get_str();
+    const std::string passphrase = main_request.params[1].isNull() ? "" : main_request.params[1].get_str();
+
+    // Validate the phrase and derive the BIP39 seed from it
+    std::string validate_error;
+    if (!ValidateMnemonic(mnemonic, validate_error)) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mnemonic phrase: " + validate_error);
+    }
+    std::optional<std::vector<unsigned char>> seed = MnemonicToSeed(mnemonic, passphrase);
+    if (!seed) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mnemonic phrase");
+    }
+
+    // BIP32 master key from the seed, then derive the BIP84 account key
+    CExtKey master_key;
+    master_key.SetSeed(std::span<const std::byte>(reinterpret_cast<const std::byte*>(seed->data()), seed->size()));
+    memory_cleanse(seed->data(), seed->size());
+
+    const unsigned int coin_type = Params().GetChainType() == ChainType::MAIN ? 0 : 1;
+    CExtKey account_key = master_key;
+    for (const unsigned int child_index : {84u, coin_type, 0u}) {
+        CExtKey derived_key;
+        if (!account_key.Derive(derived_key, child_index | 0x80000000u)) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "Failed to derive the BIP84 account key");
+        }
+        account_key = derived_key;
+    }
+
+    // Build the wpkh descriptors, with the master key fingerprint as origin
+    const CKeyID master_key_id = master_key.key.GetPubKey().GetID();
+    const unsigned char* fingerprint_bytes = master_key_id.begin();
+    const std::string fingerprint = strprintf("%02x%02x%02x%02x", fingerprint_bytes[0], fingerprint_bytes[1], fingerprint_bytes[2], fingerprint_bytes[3]);
+    const std::string origin = strprintf("[%s/84'/%u'/0']", fingerprint, coin_type);
+    const std::string account_xprv = EncodeExtKey(account_key);
+
+    std::array<std::string, 2> descriptors;
+    for (const bool internal : {false, true}) {
+        std::string desc = "wpkh(" + origin + account_xprv + (internal ? "/1/*)" : "/0/*)");
+        descriptors[internal ? 1 : 0] = desc + "#" + GetDescriptorChecksum(desc);
+    }
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now
+    wallet.BlockUntilSyncedToCurrentChain();
+
+    WalletRescanReserver reserver(wallet);
+    if (!reserver.reserve(/*with_passphrase=*/true)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Wallet is currently rescanning. Abort existing rescan or wait.");
+    }
+
+    // Ensure that the wallet is not locked for the remainder of this RPC, as
+    // the imported keys are used to top up the keypool.
+    LOCK(wallet.m_relock_mutex);
+
+    UniValue response(UniValue::VARR);
+    bool imported_any = false;
+    {
+        LOCK(wallet.cs_wallet);
+        EnsureWalletIsUnlocked(wallet);
+
+        if (!wallet.IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "importmnemonic can only be used with a descriptor wallet");
+        }
+        if (!wallet.GetAllScriptPubKeyMans().empty()) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "importmnemonic requires a blank wallet with no existing descriptors. Create a new blank wallet with createwallet (blank=true) and load it first.");
+        }
+
+        for (size_t i = 0; i < descriptors.size(); ++i) {
+            UniValue request_data(UniValue::VOBJ);
+            request_data.pushKV("desc", descriptors[i]);
+            request_data.pushKV("active", true);
+            request_data.pushKV("internal", i == 1);
+            const UniValue result = ProcessDescriptorImport(wallet, request_data, /*timestamp=*/0);
+            response.push_back(result);
+            if (result["success"].get_bool()) {
+                imported_any = true;
+            }
+        }
+        wallet.ConnectScriptPubKeyManNotifiers();
+        wallet.RefreshAllTXOs();
+    }
+
+    // Rescan the blockchain using the descriptor timestamp (0 = from the beginning)
+    if (imported_any) {
+        wallet.RescanFromTime(0, reserver, /*update=*/true);
+        wallet.ResubmitWalletTransactions(/*relay=*/false, /*force=*/true);
+
+        if (wallet.IsAbortingRescan()) {
+            throw JSONRPCError(RPC_MISC_ERROR, "Rescan aborted by user.");
+        }
+    }
+
+    return response;
+},
+    };
+}
+
+RPCHelpMan generatemnemonic()
+{
+    return RPCHelpMan{
+        "generatemnemonic",
+        "Generate a new BIP39 mnemonic phrase from secure random entropy.\n"
+        "The phrase is only returned by this call; no wallet is created, loaded or modified.\n"
+        "Write the phrase down and keep it secret: anyone who knows the phrase (and the passphrase, if one is used)\n"
+        "can spend the coins. To use the phrase, create a blank descriptor wallet with createwallet (blank=true)\n"
+        "and import the phrase with importmnemonic.\n"
+        "The optional passphrase argument does not change the generated phrase; it is accepted for symmetry with\n"
+        "importmnemonic, where the same passphrase must be given again. A passphrase acts as an additional password:\n"
+        "the same phrase with a different passphrase derives a completely different wallet.\n",
+                {
+                    {"word_count", RPCArg::Type::NUM, RPCArg::Default{24}, "Number of words in the phrase. One of 12, 15, 18, 21, 24"},
+                    {"passphrase", RPCArg::Type::STR, RPCArg::Default{""}, "Does not affect the generated phrase; see the description"},
+                },
+                RPCResult{RPCResult::Type::STR, "mnemonic", "The generated BIP39 mnemonic phrase"},
+                RPCExamples{
+                    HelpExampleCli("generatemnemonic", "") +
+                    HelpExampleCli("generatemnemonic", "12")
+                },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    const int word_count = request.params[0].isNull() ? 24 : request.params[0].getInt<int>();
+    if (word_count != 12 && word_count != 15 && word_count != 18 && word_count != 21 && word_count != 24) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "word_count must be one of 12, 15, 18, 21, 24");
+    }
+
+    // Entropy bits = word_count * 32 / 3, i.e. word_count * 4 / 3 bytes.
+    std::vector<unsigned char> entropy(static_cast<size_t>(word_count) * 4 / 3);
+    GetStrongRandBytes(entropy);
+    const std::string mnemonic = EntropyToMnemonic(entropy);
+    memory_cleanse(entropy.data(), entropy.size());
+    if (mnemonic.empty()) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Failed to generate a mnemonic phrase");
+    }
+    return mnemonic;
 },
     };
 }

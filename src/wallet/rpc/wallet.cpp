@@ -861,6 +861,8 @@ RPCHelpMan walletdisplayaddress();
 RPCHelpMan importprunedfunds();
 RPCHelpMan removeprunedfunds();
 RPCHelpMan importdescriptors();
+RPCHelpMan importmnemonic();
+RPCHelpMan generatemnemonic();
 RPCHelpMan listdescriptors();
 RPCHelpMan backupwallet();
 RPCHelpMan restorewallet();
@@ -931,6 +933,8 @@ std::span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &getbalances},
         {"wallet", &getwalletinfo},
         {"wallet", &importdescriptors},
+        {"wallet", &importmnemonic},
+        {"wallet", &generatemnemonic},
         {"wallet", &importprunedfunds},
         {"wallet", &keypoolrefill},
         {"wallet", &listaddressgroupings},
