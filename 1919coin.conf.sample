@@ -1,0 +1,4 @@
+# copy to %LOCALAPPDATA%\1919coin\bitcoin.conf
+listen=1
+server=1
+# addnode=203.0.113.10:11451
