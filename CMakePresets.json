@@ -14,6 +14,7 @@
       "toolchainFile": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "VCPKG_INSTALL_OPTIONS": "--clean-after-build",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
         "VCPKG_MANIFEST_FEATURES": "wallet",
         "BUILD_GUI": "OFF",
@@ -41,6 +42,7 @@
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-windows-static",
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "VCPKG_INSTALL_OPTIONS": "--clean-after-build",
         "VCPKG_MANIFEST_FEATURES": "wallet;qt",
         "BUILD_GUI": "ON",
         "BUILD_TESTS": "OFF",
