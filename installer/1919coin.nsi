@@ -1,4 +1,4 @@
-; 1919coin Windows インストーラー (NSIS)
+﻿; 1919coin Windows インストーラー (NSIS)
 ;
 ; 使い方:
 ;   1. build.bat gui でビルドする
