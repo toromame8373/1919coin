@@ -2,6 +2,15 @@
 
 Bitcoin Core v30.4 のフォークです。PoW を **RandomX** に差し替えた新規チェーンです。
 
+## インストール（Windows）
+
+1. [Releases](https://github.com/toromame8373/1919coin/releases) から最新のインストーラー（`1919coin-<バージョン>-win64-setup.exe`）をダウンロードします。
+2. 実行するとインストールできます。管理者権限は不要で、ユーザーフォルダ（`%LOCALAPPDATA%\Programs\1919coin`）に入り、スタートメニューに「1919coin」が追加されます。
+3. 起動すれば、シードが組み込まれているので自動的にネットワークへ接続します。
+
+- アンインストールしてもデータフォルダ（`%LOCALAPPDATA%\1919coin`、ウォレット入り）は削除されません。
+- ソースからビルドする場合は、次の「ビルド」を参照してください。
+
 ## ビルド（Visual Studio 2026）
 
 必要なもの: Visual Studio 2026（「C++によるデスクトップ開発」）、Git。
