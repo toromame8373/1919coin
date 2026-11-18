@@ -147,3 +147,4 @@ Bitcoin のアドレスにはそのまま送れず（逆も同様）、取り違
 
 - Bitcoin (BTC): `bc1qt4gzy5823pzvxtvwkszpu4xnzu8ftkwlcemxze`
 - Dogecoin (DOGE): `DEi9U1VAkFD1uLXm9U7rXbbREX2EYWnL7E`
+- Solana (SOL): `FczgqPJZho53jGBkv9K6rxpX4WEvC8wi7HfvJPiNjE35`
