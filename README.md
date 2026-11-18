@@ -140,3 +140,10 @@ Bitcoin のアドレスにはそのまま送れず（逆も同様）、取り違
 - 51%攻撃に弱い小規模チェーンです。取引所上場や他人への販売をする場合は、法規制・説明責任に注意してください。
 - 2026-11-15、Linux (Ubuntu 24.04 / gcc 13.3) でフルビルド（bitcoind / bitcoin-cli）とノード起動・採掘・アドレス生成を当方でも実測確認しました（ジェネシス block id 一致、報酬 10/ブロックを残高で確認）。詳細は配布元の作業ノート NOTES.md 参照。
 - 2026-11-15、Windows の MSVC 実機ビルドも成功確認済みです（bitcoind.exe が起動し、ジェネシス block id が一致）。ただし `build.bat gui` の初回は C1060 で止まることがあり、その場合は上記の並列数 1 での再実行で対応してください。
+
+## 寄付
+
+開発・運営への寄付を受け付けています。
+
+- Bitcoin (BTC): `bc1qt4gzy5823pzvxtvwkszpu4xnzu8ftkwlcemxze`
+- Dogecoin (DOGE): `DEi9U1VAkFD1uLXm9U7rXbbREX2EYWnL7E`
